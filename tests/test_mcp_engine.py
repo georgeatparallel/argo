@@ -16,7 +16,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
+from engines_http import UA  # noqa: E402
 from engines_mcp import _build_mcp_engine  # noqa: E402
+from yaml_load import load as yaml_load  # noqa: E402
 
 STDIO_SERVER = r'''
 import json, sys
@@ -130,12 +132,16 @@ class _McpHttpStub(BaseHTTPRequestHandler):
 
     received_sessions: list = []
     received_args: list = []
+    received_headers: list = []
     result_payload: dict = {"isError": False}
 
     def do_POST(self):
         length = int(self.headers.get("Content-Type") and self.headers.get("Content-Length") or 0)
         body = json.loads(self.rfile.read(length)) if length else {}
         method = body.get("method")
+        _McpHttpStub.received_headers.append((
+            method, self.headers.get("User-Agent"), "Authorization" in self.headers,
+        ))
         if method == "initialize":
             self._sse({"jsonrpc": "2.0", "id": body.get("id"), "result": {
                 "protocolVersion": "2025-06-18",
@@ -176,6 +182,7 @@ class HttpTransportTest(unittest.TestCase):
         self.addCleanup(self.server.shutdown)
         _McpHttpStub.received_sessions = []
         _McpHttpStub.received_args = []
+        _McpHttpStub.received_headers = []
         _McpHttpStub.result_payload = {"isError": False}
 
     def _spec(self, output_map):
@@ -207,6 +214,32 @@ class HttpTransportTest(unittest.TestCase):
             "isError": True, "content": [{"type": "text", "text": "No results."}]}
         engine = _build_mcp_engine(self._spec({"items": "results", "item_title": "title"}))
         self.assertEqual(engine("查询", n=3), [])
+
+    def test_parallel_mcp_sends_anonymous_search_array_and_app_ua(self):
+        spec_path = ROOT / "engines" / "specs" / "parallel_mcp.yaml"
+        spec = yaml_load(spec_path)
+        self.assertEqual(spec["url"], "https://mcp.parallel.ai/mcp")
+        self.assertTrue(spec["explicit_only"])
+        self.assertNotIn("required_env", spec)
+        source_url = "https://example.com/docs?lang=en#reference"
+        _McpHttpStub.result_payload = {"structuredContent": {"results": [
+            {"title": "Reference", "url": source_url,
+             "excerpts": ["First excerpt", "Second excerpt"], "publish_date": "2026-11-18"},
+            {"title": "Another result", "url": "https://example.com/other"},
+        ]}}
+        spec["url"] = f"http://127.0.0.1:{self.port}"
+        engine = _build_mcp_engine(dict(spec, _name=spec["engine_id"]))
+
+        for query in ("123", '路径 "docs" {UUID}'):
+            rows = engine(query, n=1)
+            self.assertEqual(rows, [{"title": "Reference", "url": source_url,
+                                     "snippet": "First excerpt", "published_at": "2026-11-18",
+                                     "source": "parallel_mcp"}])
+            self.assertEqual(_McpHttpStub.received_args[-1]["search_queries"], [query])
+        self.assertEqual(_McpHttpStub.received_headers, [
+            (method, UA, False)
+            for method in ("initialize", "notifications/initialized", "tools/call") * 2
+        ])
 
     def test_text_mode_regex_mapping(self):
         """mode: text——grep.app 报告分块正则抽 title/url/snippet。"""

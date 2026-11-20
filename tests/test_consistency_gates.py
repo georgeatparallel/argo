@@ -374,7 +374,7 @@ def sb():
 
 
 class TestDerivedArtifactsInSync:
-    """registry / quota / domain 三份派生件必须覆盖运行时可见的全部引擎。
+    """registry / quota 覆盖所有引擎，domain 覆盖自动路由引擎。
 
     守的是「人工改文档件、来源没跟上」：新增引擎只写进 registry（死文档），
     配额与领域画像漏侧，且 --check 自比永远绿。
@@ -387,6 +387,14 @@ class TestDerivedArtifactsInSync:
         registry = sb._load_yaml(sb.REGISTRY_PATH)
         issues = sb.collect_issues(engines, quota, registry, domain)
         assert not issues, "派生件与真源不一致：\n  - " + "\n  - ".join(issues)
+
+    def test_sync_preserves_existing_corpus_when_adding_explicit_engine(self, sb):
+        engines = {"auto": {}, "existing_manual": {"explicit_only": True},
+                   "new_manual": {"explicit_only": True}}
+        profiles = {"auto": {"documents": ["search"]}, "existing_manual": {"documents": []}}
+        assert sb.patch_domain_profiles(engines, profiles) == profiles
+        assert sb.check_domain_profiles(engines, profiles) == []
+        assert sb.check_domain_profiles(engines, {"existing_manual": profiles["existing_manual"]})
 
     def test_check_mode_is_not_tautological(self, sb, tmp_path, monkeypatch):
         """--check 必须能失败：把 registry 改坏后应报错，而不是照绿。"""

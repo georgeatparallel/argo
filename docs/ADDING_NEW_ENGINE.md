@@ -27,7 +27,8 @@ CLI 桥接关键字段：
 MCP 连接器关键字段（适配器 `scripts/engines_mcp.py`，样板 `engines/specs/grepapp_mcp.yaml`）：
 
 - `transport: http | stdio`：http 走 Streamable HTTP（JSON-RPC，SSE 帧自动解析，`Mcp-Session-Id` 自动回传）；stdio 走子进程换行帧（`command` 必须是列表，禁 shell，env 走 `build_child_env` 白名单）。
-- `tool`：单一 allowlist，只可调用声明的那一个工具；`arguments` 参数模板支持 `{query}` / `{n}` 占位符并做 int/bool 类型保真。
+- `tool`：单一 allowlist，只可调用声明的那一个工具；`arguments` 支持 `{query}` / `{n}` 等占位符。标量模板保留 int/bool 转换，字符串列表（如 `search_queries: ['{query}']`）按数组传输。
+- HTTP 连接器可在 `headers` 声明 `User-Agent: argo-search`，在发出请求时使用 Argo 统一的应用标识。
 - 内容层二选一：`output_map.mode: json`（默认）——`structuredContent` 或 JSON 文本走与 http 引擎同一套字段映射；`mode: text`——纯文本工具用 `text_split` 分块正则 + `item_title_regex` / `item_url_regex` / `item_summary_regex` 逐块抽字段。
 - `isError` 的结果不产出条目（fail-visible）；json 模式收到非 JSON 文本同样返回空并告警，不编造条目。
 - 接入新连接器建议 spec 带 `synthesized: true` 标记，人工确认后摘除。

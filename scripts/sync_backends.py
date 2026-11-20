@@ -14,7 +14,7 @@ sync_backends.py — 注册表派生与一致性校验（唯一来源：运行�
   运行时合并后的 engines 段（唯一来源）
     ├── backends/quota_profiles.json    配额/成本/限频（由引擎声明的元数据派生）
     ├── backends/engine_registry.yaml   引擎注册表文档（由引擎声明派生）
-    ├── backends/domain_profiles.json   TF-IDF 领域文档（校验引擎名集合，缺失补空模板）
+    ├── backends/domain_profiles.json   TF-IDF 领域文档（自动路由引擎缺失时补空模板）
     └── backends/env_passthrough.txt    mcp_launch.sh 的密钥透传名单（声明里能读到的全部密钥名）
 
 用法：
@@ -381,12 +381,12 @@ def write_keyrefs_block(block: str) -> None:
 # ── 校验/补全：domain_profiles.json ─────────────────────────────────────────
 
 def check_domain_profiles(engines: dict[str, dict[str, Any]], profiles: dict[str, Any]) -> list[str]:
-    """校验 domain_profiles 引擎名集合与 config 一致。返回问题列表。"""
+    """校验领域画像覆盖自动路由引擎、没有已删除的引擎。"""
     issues = []
-    config_names = set(engines.keys())
+    required_names = {name for name, spec in engines.items() if not spec.get("explicit_only")}
     domain_names = set(k for k in profiles if not k.startswith("_"))
-    missing = sorted(config_names - domain_names)
-    stale = sorted(domain_names - config_names)
+    missing = sorted(required_names - domain_names)
+    stale = sorted(domain_names - engines.keys())
     if missing:
         issues.append(f"domain_profiles 缺失引擎: {missing}")
     if stale:
@@ -395,10 +395,11 @@ def check_domain_profiles(engines: dict[str, dict[str, Any]], profiles: dict[str
 
 
 def patch_domain_profiles(engines: dict[str, dict[str, Any]], profiles: dict[str, Any]) -> dict[str, Any]:
-    """为缺失引擎补空模板（documents 留空，TF-IDF 对无文档引擎返回零向量，不影响路由）。"""
+    """给自动路由引擎补空模板，保留已有画像以维持 TF-IDF 的语料大小。"""
     patched = dict(profiles)
     for name, spec in engines.items():
-        if name in patched:
+        # 空文档也计入 IDF 的语料大小，显式专用的新引擎不应改变路由权重。
+        if name in patched or spec.get("explicit_only"):
             continue
         patched[name] = {
             "label": spec.get("label", name),

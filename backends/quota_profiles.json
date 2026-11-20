@@ -2070,6 +2070,16 @@
     "cost_tier": "free",
     "priority": 55
   },
+  "parallel_mcp": {
+    "label": "Parallel 匿名网页搜索（MCP）",
+    "qps": 1,
+    "limit": null,
+    "period": "month",
+    "cost_per_call": 0.0,
+    "cost_unit": "free",
+    "cost_tier": "free",
+    "priority": 55
+  },
   "people_daily": {
     "label": "people_daily",
     "qps": 2,

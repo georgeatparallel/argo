@@ -2627,6 +2627,19 @@ engines:
   explicit_only: false
   desc: Parallel 免费搜索（官方免费 MCP 端点 search.parallel.ai，无账号无 key；excerpts 长文摘录省 fetch；与按量计费的
     parallel REST 通道分立，作其缺位时的补位）
+- name: parallel_mcp
+  tier: T1
+  type: mcp
+  coverage:
+  - general
+  - chinese
+  - english
+  latency_ms: 2000
+  cost: free
+  status: ok
+  recommended: false
+  explicit_only: true
+  desc: 显式指定 --engine parallel_mcp，通过官方统一 MCP 端点匿名搜索；查询发送给 Parallel，无需 API key。
 - name: people_daily
   tier: T1
   type: people_daily

@@ -1,0 +1,33 @@
+engine_id: parallel_mcp
+type: mcp
+enabled: true
+explicit_only: true
+synthesized: true
+label: Parallel 匿名网页搜索（MCP）
+family: web_general
+cost_tier: free
+priority: 55
+qps: 1
+period: month
+cost_per_call: 0.0
+cost_unit: free
+timeout: 15
+coverage: [general, chinese, english]
+desc: '显式指定 --engine parallel_mcp，通过官方统一 MCP 端点匿名搜索；查询发送给 Parallel，无需 API key。'
+recommended: false
+canary_query: Python pathlib 标准库文档
+
+transport: http
+url: https://mcp.parallel.ai/mcp
+headers:
+  User-Agent: argo-search
+tool: web_search
+arguments:
+  objective: Find relevant web sources for the search query.
+  search_queries: ['{query}']
+output_map:
+  items: results
+  item_title: title
+  item_url: url
+  item_summary: excerpts.0
+  item_published_at: publish_date

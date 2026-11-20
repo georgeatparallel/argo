@@ -19,7 +19,7 @@ spec 契约（engines/specs/<engine_id>.yaml）::
     url: https://mcp.grep.app        # http 传输端点
     # command: [uvx, -y, some-server] # stdio 传输命令——必须是列表，禁 shell
     tool: searchGitHub               # 工具单一 allowlist，只可调用这一个
-    arguments:                       # 参数模板：{query}/{n}/{depth} 与 {ENV}
+    arguments:                       # 支持标量模板和字符串模板列表
       query: "{query}"
       perPage: "{n}"
     required_env: [ARGO_GREP_APP_API_KEY]  # env 白名单真源；未配置的头不发送
@@ -50,6 +50,7 @@ import urllib.request
 from typing import Any
 
 from engine_env import allowed_placeholders_for, build_child_env
+from engines_http import normalize_ua_headers
 from engines_base import (
     _apply_url_kind,
     _ensure_engine_source,
@@ -363,17 +364,24 @@ def _build_mcp_engine(spec: dict[str, Any]) -> Any:
         env = build_child_env(eng, spec) if transport == "stdio" else {}
         headers = {}
         if transport == "http":
-            headers = {
+            headers = normalize_ua_headers({
                 k: v for k, v in (
                     (k, _resolve(str(v), query, n, allowed_env=allowed, **kwargs))
                     for k, v in (spec.get("headers") or {}).items()
                 ) if _header_meaningful(v)
-            }
+            })
         args: dict[str, Any] = {}
         for k, v in arguments_template.items():
+            if isinstance(v, list):
+                # 单独的 {query} 直接传原文，避免查询内容被当作占位符或数值。
+                args[k] = [
+                    query if item == "{query}" else _resolve(
+                        str(item), query, n, allowed_env=allowed, depth=depth, **kwargs
+                    )
+                    for item in v
+                ]
+                continue
             resolved = _resolve(str(v), query, n, allowed_env=allowed, depth=depth, **kwargs)
-            if isinstance(resolved, list):
-                resolved = " ".join(resolved)
             if resolved.lower() == "true":
                 args[k] = True
             elif resolved.lower() == "false":
